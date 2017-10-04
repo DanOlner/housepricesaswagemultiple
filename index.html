@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>English house prices as a multiple of median wages: 1997 to 2016</title>
+        <script type="text/javascript" src="d3/d3.v4.js"></script>
+        <script type="text/javascript" src="js/bootstrap-slider.min.js"></script>
+        <script type="text/javascript" src="js/jquery.min.js"></script>
+        <script type="text/javascript" src="js/d3-selection-multi.js"></script>
+        <link rel="stylesheet" href="css/main.css">
+        <link rel="stylesheet" href="css/bootstrap-slider.css">        
+        <link rel="stylesheet" href="css/bootstrap.min.css">        
+    </head>
+    <body>
+
+        <div id="buttons"></div>
+
+        <!--year slider-->
+        <input id="ex1" data-slider-id='ex1Slider' type="text" 
+               data-slider-min="1997" data-slider-max="2016" data-slider-step="1" data-slider-value="1997"/>
+
+        <div class = "mapdiv">
+
+            <svg class="map" width="1800px" height="1100px">
+
+            <g class="innerg"></g>
+
+            <g class="sidebar" transform = "translate(690,0)">
+            <rect class = "sidebarrect" width = "35" height = "750"></rect>
+            </g>
+
+
+            </svg>
+        </div>
+
+        <script type="text/javascript" src="js/simple2.js"></script>		
+    </body>
+</html>

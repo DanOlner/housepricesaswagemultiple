@@ -1,0 +1,32 @@
+Peter cook skype #1
+===================
+
+Anything not data-driven: write directly into html
+
+D3: tricky for nested data (so avoid if you don't have to use)
+
+New javascript ES6 (most supported is ES5)
+
+D3 to v4: syntax for scales has changed
+
+jsbin.com
+
+Axes NEED STYLING (use v4)
+
+
+D3 will deal with the path element here:
+
+<svg width="800px" height="400px">
+  <line></line>
+  <circle></circle>
+  <rect></rect>
+
+  <g>
+    <g class="x axis"></g>
+    <g transform="translate(0, 300)" class="y axis"></g>
+    <g class="line chart"></g>
+  </g>
+
+  <path d="M100,100 L200,100 L200,200 L100,200 z"></path>
+
+</svg>

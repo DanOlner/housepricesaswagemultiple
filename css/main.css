@@ -1,0 +1,26 @@
+svg .line-chart path {
+    fill: none;
+    stroke: #555;
+    stroke-width: 2; 
+}
+
+svg .map path {
+    fill: none;
+    stroke: #555;
+    stroke-width: 2; 
+}
+
+/*Mainly just to see where it is for now*/
+svg.map {
+    /*border-style: solid*/
+}
+
+.sidebarrect {
+    fill: none;
+    stroke: rgb(0,0,0);
+    stroke-width: 1px
+}
+
+
+
+
