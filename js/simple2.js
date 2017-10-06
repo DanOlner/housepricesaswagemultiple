@@ -20,7 +20,9 @@ var state = {
     zonehoveredover: -1, //record of current hover zone. Used for formatting in different places
     linesLookup: 0, //will be array of all (transformed) coordinates for lines in sidebar
 
-    prevStyledLine: 0
+    prevStyledLine: 0,
+    //A subset of year data that's just the selected local authorities. For sidebar text and graph details.
+    selectiondata: 0
 }
 
 //Set some initial zone selections for testing
@@ -109,31 +111,16 @@ function returnNearestPlace(num) {
 
 //Taking in a D3 element that actually *is* the line
 //Or a y coordinate and we have to find the nearest
-//isNearest: if false, it's the exact y point (or should be)
+//Now only finds nearest - exact matches call setLineStyle directly
 function findNearestZoneLine(numorobject) {
 
     var match = 0;
 
-    if (typeof (numorobject) !== 'object') {
+    match = returnNearestPlace(numorobject)
 
-
-        match = returnNearestPlace(numorobject)
-
-        window.console.log("are we here? " + match.order);
-
-        //This is currently a copy of a row. Can find a quicker way to get ref I think
-        setLineStyle(d3.select("line#localauthorityindex" + (match.order - 1)))
-
-//        window.console.log("nearest: " + match.NAME);
-
-
-    } else {
-
-        match = numorobject
-//        window.console.log("exact: " + match.NAME);
-
-    }
-
+    //This is currently a copy of a row. Can find a quicker way to get ref I think
+    //"Order" starts at 1, as is R's wont. i index is yer standard array start-at-zero
+    setLineStyle(d3.select("line#localauthorityindex" + (match.order - 1)), (match.order - 1))
 
 }
 
@@ -172,12 +159,25 @@ function setMapHoverStyle(selection, i) {
 
 }
 
+
+
 function setLineStyle(selection, j) {
 
     var currentname = 0, prevname = 0
 
+    //Keep a record of what's being hovered over for e.g. click behaviour in the bar
+    state.zonehoveredover = j
+
     //incoming selection will always have selection style
     selection.style("stroke-width", "10")
+
+    //Putting highlights for other things here for now. 
+    //Will try and think of more eventy way of doing this.
+    setMapHoverStyle(d3.select("path#localauthorityindex" + j + ".mappath"))
+
+
+//    window.console.log("j:" +j);
+
 
     //if the current and previous are different
     //revert the previous to its original style
@@ -185,10 +185,11 @@ function setLineStyle(selection, j) {
 //        if (state.prevStyledLine !== selection.data()[0].order - 1) {
         if (state.prevStyledLine.data()[0].NAME !== selection.data()[0].NAME) {
 
+            //Do map first. Ooo isn't that neat? Err. NO.
+            setZoneStyle(d3.select("path#localauthorityindex" + (state.prevStyledLine.data()[0].order - 1) + ".mappath"))
+
             //Try accessing directly. Tick.
 //            window.console.log("access: " + d3.select("line#localauthorityindex"+j).data()[0].NAME)
-
-            //So using either direct access or the stored selection, same outcome. Bizarre.
 
             state.prevStyledLine
                     .style("stroke-width", function (d) {
@@ -204,41 +205,12 @@ function setLineStyle(selection, j) {
                                 d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
                                 "hsl(" + coltouse + ",100%,40%)")
                     })
-//            d3.select("line#localauthorityindex" + state.prevStyledLine)
-//                    .attrs({
-//                        stroke: function (d) {
-//               
-//                            prevname = d.NAME
-//                            window.console.log("In previous selection: " + prevname);
-//                            
-////                        return(Math.round(mapColourScale(d.wagem_median_rank)))
-//                            var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
-//                            return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
-//                                    d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
-//                                    "hsl(" + coltouse + ",100%,40%)")
-//                        },
-//                        "stroke-width": 25
-//                    })
 
-//            window.console.log(state.prevStyledLine.data()[0])
-
-//            window.console.log("does this ever? " + currentname + "," + prevname);
         }
     }
 
-//    window.console.log("previous: " + prevname + ", current: " + currentname);
-
-//    if (state.prevStyledLine !== 0) {
-//        if (prevname !== currentname) {
-//            state.prevStyledLine = selection
-//        }
-//    }
-
-
-//store a copy to compare to next call
+    //store a copy to compare to next call
     state.prevStyledLine = selection
-//    window.console.log(selection.data()[0].order -1)
-//    state.prevStyledLine = selection.data()[0].order - 1
 
 
 }
@@ -263,6 +235,13 @@ function update() {
     for (var i = 0; i < 326; i++) {
         yeardata[i].zoneselected = state.zoneselection[i]
     }
+
+    //Get selection subset as its own data, for sidebar text and graphs
+    state.selectiondata = yeardata.filter(function (d) {
+
+        return d.zoneselected === 1//also set in HTML
+
+    })
 
 
     function updateStatus() {
@@ -315,6 +294,65 @@ function update() {
 
 
         setLinesCoordinates()
+
+
+
+        //sidebar text
+        //Deal with changes in data first
+        //I should probably pull this out into a function: we have two of them currently.
+        //Oh scratch that. Update called in init. Just once now. Need to go refactor all that.
+        d3.select("g#sidebar")
+                .selectAll("text")
+                .data(state.selectiondata, function (d) {
+                    return d.order
+                })//use key as will be changing its basic order
+                .enter()
+                .append("text")
+                .text(function (d, i) {
+
+                    //https://stackoverflow.com/a/12830454
+                    //Which also has an option for rounding if in numeric format. (Text here.)
+                    return parseFloat(d.wagemultipleFromMedian).toFixed(2) + "x";
+
+                })
+                .attrs({
+                    x: 44,
+                    y: function (d) {
+                        return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
+                    },
+                    dy: 4,
+                    "font-size": "12" 
+                })
+
+        d3.select("g#sidebar")
+                .selectAll("text")
+                .data(state.selectiondata, function (d) {
+                    return d.order
+                })//use key as will be changing its basic order
+                .exit()
+                .remove()
+
+        d3.select("g#sidebar")
+                .selectAll("text")
+                .data(state.selectiondata, function (d) {
+                    return d.order
+                })
+                .transition()
+                .text(function (d, i) {
+
+                    //https://stackoverflow.com/a/12830454
+                    //Which also has an option for rounding if in numeric format. (Text here.)
+                    return parseFloat(d.wagemultipleFromMedian).toFixed(2) + "x";
+
+                })
+                .attrs({
+                    x: 44,
+                    y: function (d) {
+                        return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
+                    },
+                    dy: 4
+                })
+
 
 
     }
@@ -383,6 +421,11 @@ function init() {
             yeardata[i].zoneselected = state.zoneselection[i]
         }
 
+        //Get selection subset as its own data, for sidebar text and graphs
+        state.selectiondata = yeardata.filter(function (d) {
+            return d.zoneselected === 1//also set in HTML
+        })
+
 
         //VERTICAL DATA SIDEBAR INIT
         //Here to make sure data is loaded
@@ -423,25 +466,56 @@ function init() {
                 .on("mousemove", function (d, i) {
                     //Using mousemove here AND in the rect should let us know where we are at all times
                     state.mouseIsOverLine = true
-//                    console.log("still in! " + d3.mouse(this)[0] + "," + d3.mouse(this)[1])
-
-                    //No need to find nearest zone line - pass element then check when there
-//                    findNearestZoneLine(this)
-//                    
-                    //false: this is not the nearest, this is the exact position
-//                    findNearestZoneLine(Math.round(sideBarVerticalScale(d.wagem_median_rank)), false)
-                    //Just pass the object!
-//                    findNearestZoneLine(d)
 
 //                    styleFromSelectedIndexNumber(i)
                     //pass index number to be used for styling other parts of viz
                     setLineStyle(d3.select(this), i)
 
                 })
+                .on("click", function () {
+
+                    //This code needs repeating for when mouse is near lines via sidebarrect behaviour
+                    //I have a feeling there's a sensible way to do this once. Don't know what yet.
+
+                    //state.zonehoveredover set when setLineStyle called. Used to select
+                    state.zoneselection[state.zonehoveredover] = (state.zoneselection[state.zonehoveredover] === 0 ? 1 : 0)
+                    update()
+
+                })
 
 
         //Now they're made, get a record of their positions for finding nearest with mouse y
         setLinesCoordinates()
+
+
+
+        //Add text details to sidebar from selected zones
+//        d3.select("g#sidebar")
+//                .selectAll("text")
+//                .data(state.selectiondata, function (d) {
+//                    return d.order
+//                })//use key as will be changing its basic order
+//                .enter()
+//                .append("text")
+//                .text(function (d, i) {
+//
+//                    //https://stackoverflow.com/a/12830454
+//                    //Which also has an option for rounding if in numeric format. (Text here.)
+//                    return parseFloat(d.wagemultipleFromMedian).toFixed(2) + "x";
+//
+//                })
+//                .attrs({
+//                    x: 44,
+//                    y: function (d) {
+//                        return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
+//                    },
+//                    dy: 4,
+//                    "font-size": "12"
+//                })
+
+
+
+
 
 
     })
@@ -462,10 +536,23 @@ function init() {
                 findNearestZoneLine(Math.round(d3.mouse(this)[1]))
 
             })
+            .on("click", function () {
+
+                //This code needs repeating for when mouse is directly over lines
+                //I have a feeling there's a sensible way to do this once. Don't know what yet.
+
+                //state.zonehoveredover set when setLineStyle called. Used to select
+                state.zoneselection[state.zonehoveredover] = (state.zoneselection[state.zonehoveredover] === 0 ? 1 : 0)
+                update()
+
+            })
 //            .on("mouseleave", function () {
 //                state.mouseIsInSidebar = false
 //                console.log("out!")
 //            })
+
+
+
 
 
     //bootstrap slider
@@ -481,6 +568,12 @@ function init() {
         state.sliderVal = sliderValue
         update()
     });
+
+
+
+
+
+
 
 
 
@@ -536,7 +629,7 @@ function init() {
                 .on("mouseover", function () {
 
                     //Call set hover style in its own function so other viz elements can do it too.
-                    d3.select(this)            
+                    d3.select(this)
                             .call(setMapHoverStyle)
 
                 })
