@@ -8,11 +8,19 @@
 //Why isn't this needed? Update can see it even when called from slider.on
 //How?
 var alldata = null
+var yeardata = null
 
 //zoneselection: one for each local authority. Set to all zeroes to start with. Same order as places names in alldata
 var state = {
     sliderVal: 1997,
-    zoneselection: Array.apply(null, Array(326)).map(Number.prototype.valueOf, 0)
+    zoneselection: Array.apply(null, Array(326)).map(Number.prototype.valueOf, 0),
+    mouseIsInSidebar: false, //if inside then use next mouseover as overall selection
+    mouseIsOverLine: false, //needed cos IsInSidebar is switched off when the mouse goes over a line. Way to fix?
+    //So anyway: "in rectangle is true OR true for those two. Can't use one, timings may be wrong.
+    zonehoveredover: -1, //record of current hover zone. Used for formatting in different places
+    linesLookup: 0, //will be array of all (transformed) coordinates for lines in sidebar
+
+    prevStyledLine: 0
 }
 
 //Set some initial zone selections for testing
@@ -47,10 +55,92 @@ lineGenerator
         })
 
 
+//********************
+//GLOBAL FUNCTIONS----
+
+function setLinesCoordinates() {
+
+    //Get y positions of lines in sidebar in one array
+    //For working out which is nearest to mouse position if using nearest
+    //In findNearestZoneLine
+    state.linesLookup = []
+
+    yeardata.forEach(function (x) {
+
+        //lookup: y position to get the array entry. 
+        //Why? Cos we want to get nearest sometimes
+        //Not just the thing in itself.
+        //Which turns out to be some faff.
+        state.linesLookup.push(
+                {
+                    ypos: Math.round(sideBarVerticalScale(x.wagem_median_rank)),
+                    ref: x
+                }
+        )
+
+    })
+
+//    window.console.log(state.linesCoordinates);
+
+}
+
+//find nearest value in array
+//Returns a copy of the whole row's data
+function returnNearestPlace(num) {
+
+    var result = 0
+    var lastdiff = 100000
+
+    state.linesLookup.forEach(function (x) {
+
+        diff = Math.abs(num - x.ypos)
+
+        if (Math.abs(num - x.ypos) < lastdiff) {
+            result = x.ref
+            lastdiff = diff
+
+        }
+
+    })
+
+    return(result)
+
+}
+
+//Taking in a D3 element that actually *is* the line
+//Or a y coordinate and we have to find the nearest
+//isNearest: if false, it's the exact y point (or should be)
+function findNearestZoneLine(numorobject) {
+
+    var match = 0;
+
+    if (typeof (numorobject) !== 'object') {
+
+
+        match = returnNearestPlace(numorobject)
+
+        window.console.log("are we here? " + match.order);
+
+        //This is currently a copy of a row. Can find a quicker way to get ref I think
+        setLineStyle(d3.select("line#localauthorityindex" + (match.order - 1)))
+
+//        window.console.log("nearest: " + match.NAME);
+
+
+    } else {
+
+        match = numorobject
+//        window.console.log("exact: " + match.NAME);
+
+    }
+
+
+}
 
 
 //https://github.com/d3/d3-selection using selection.call
-function setZoneStyle(selection) {
+function setZoneStyle(selection, j) {
+
 
     selection
             .style("fill", function (d, i) {
@@ -66,6 +156,89 @@ function setZoneStyle(selection) {
             .style("stroke-width", function (d) {
                 return(d.zoneselected === 0 ? "0.75" : "2.75")
             })
+
+}
+
+
+//For mouseover and when other features want it highlighted, same behaviour
+function setMapHoverStyle(selection, i) {
+
+    selection.
+            style("fill", function (d, i) {
+                var colScale = d3.scaleLinear().domain([110.5, 6520]).range([120, 0])//hsl
+                var coltouse = Math.round(colScale(d.wagem_median_rank))
+                return(d.wagemultipleFromMedian > 0 ? "hsl(" + coltouse + ",100%,30%)" : "rgb(100,100,100)")
+            })
+
+}
+
+function setLineStyle(selection, j) {
+
+    var currentname = 0, prevname = 0
+
+    //incoming selection will always have selection style
+    selection.style("stroke-width", "10")
+
+    //if the current and previous are different
+    //revert the previous to its original style
+    if (state.prevStyledLine !== 0) {
+//        if (state.prevStyledLine !== selection.data()[0].order - 1) {
+        if (state.prevStyledLine.data()[0].NAME !== selection.data()[0].NAME) {
+
+            //Try accessing directly. Tick.
+//            window.console.log("access: " + d3.select("line#localauthorityindex"+j).data()[0].NAME)
+
+            //So using either direct access or the stored selection, same outcome. Bizarre.
+
+            state.prevStyledLine
+                    .style("stroke-width", function (d) {
+                        return(d.zoneselected === 0 ? 2 : 6)
+                    })
+                    .style("stroke", function (d) {//               
+                        prevname = d.NAME
+//                        window.console.log("In previous selection: " + prevname);
+
+//                        return(Math.round(mapColourScale(d.wagem_median_rank)))
+                        var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
+                        return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
+                                d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
+                                "hsl(" + coltouse + ",100%,40%)")
+                    })
+//            d3.select("line#localauthorityindex" + state.prevStyledLine)
+//                    .attrs({
+//                        stroke: function (d) {
+//               
+//                            prevname = d.NAME
+//                            window.console.log("In previous selection: " + prevname);
+//                            
+////                        return(Math.round(mapColourScale(d.wagem_median_rank)))
+//                            var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
+//                            return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
+//                                    d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
+//                                    "hsl(" + coltouse + ",100%,40%)")
+//                        },
+//                        "stroke-width": 25
+//                    })
+
+//            window.console.log(state.prevStyledLine.data()[0])
+
+//            window.console.log("does this ever? " + currentname + "," + prevname);
+        }
+    }
+
+//    window.console.log("previous: " + prevname + ", current: " + currentname);
+
+//    if (state.prevStyledLine !== 0) {
+//        if (prevname !== currentname) {
+//            state.prevStyledLine = selection
+//        }
+//    }
+
+
+//store a copy to compare to next call
+    state.prevStyledLine = selection
+//    window.console.log(selection.data()[0].order -1)
+//    state.prevStyledLine = selection.data()[0].order - 1
 
 
 }
@@ -126,32 +299,23 @@ function update() {
                     },
                     y2: function (d) {
                         return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
-                    },
-//                    stroke: "rgb(0,0,0)",
-                    stroke: function (d) {
-//                        return(Math.round(mapColourScale(d.wagem_median_rank)))
-                        var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
-                        return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
-                                d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
-                                "hsl(" + coltouse + ",100%,40%)")
-                    },
-                    "stroke-width": function (d) {
-                        return(d.zoneselected === 0 ? 1 : 6)
                     }
+                })
+                .style("stroke", function (d) {
+//                        return(Math.round(mapColourScale(d.wagem_median_rank)))
+                    var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
+                    return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
+                            d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
+                            "hsl(" + coltouse + ",100%,40%)")
+                })
+                .style("stroke-width", function (d) {
+                    return(d.zoneselected === 0 ? 2 : 6)
                 })
 
 
-        //trying this: https://bost.ocks.org/mike/constancy/
-        //Or might need to start here: https://bost.ocks.org/mike/transition/
-        //OK, ignore that for now: just added transition() ... and it worked. WOW. How on earth...?? THAT'S AMAZING.
-//        d3.selectAll(".sidebarline")
-//                .data(yeardata, function (d) {
-//                    return d.NAME;
-//                })
-//                .transition()
-//                .attr("transform", function (d) {
-//                    return "translate(0," + y(d.NAME) + ")";
-//                });
+
+        setLinesCoordinates()
+
 
     }
 
@@ -161,7 +325,7 @@ function update() {
 //    updateStatus()
 //    updateLineChart()    
 
-    console.log(state.sliderVal)
+//    console.log(state.sliderVal)
 
 
 
@@ -203,7 +367,7 @@ function init() {
 
     //Subset for testing (which I run again to get a separate copy to make sure it'll load)
     //This subset is got from data above once initially loaded
-    var yeardata = d3.csv('data/prices_n_wagesByLocalAuthority_missingsAreMinusOne2.csv', function (err, csv) {
+    yeardata = d3.csv('data/prices_n_wagesByLocalAuthority_missingsAreMinusOne2.csv', function (err, csv) {
 
         //Test filtering data then applying to paths
         //"Filtering in v4":
@@ -222,45 +386,86 @@ function init() {
 
         //VERTICAL DATA SIDEBAR INIT
         //Here to make sure data is loaded
-        //test
-//        testy = yeardata
-//        console.log(
-//                Math.round(sideBarVerticalScale(function (d) {
-//                    d.wagem_median_rank
-//                })))
-
-
-        d3.select("g.sidebar")
+        d3.select("g#sidebar")
                 .selectAll("line")
                 .data(yeardata)
                 .enter()
                 .append("line")
                 .attr("class", "sidebarline")
+                .attr("id", function (d, i) {
+//                    window.console.log(i);
+                    return("localauthorityindex" + i)
+                })
                 .attrs({
-                    x1: 1,
+                    x1: function (d) {
+                        return(d.zoneselected === 0 ? 1 : -4)
+                    },
                     y1: function (d) {
                         return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
                     },
-                    x2: 34,
+                    x2: function (d) {
+                        return(d.zoneselected === 0 ? 34 : 39)
+                    },
                     y2: function (d) {
                         return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
-                    },
-//                    stroke: "rgb(0,0,0)",
-                    stroke: function (d) {
+                    }
+                })
+                .style("stroke", function (d) {
 //                        return(Math.round(mapColourScale(d.wagem_median_rank)))
-                        var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
-                        return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
-                                d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
-                                "hsl(" + coltouse + ",100%,40%)")
-                    },
-                    "stroke-width": 2
+                    var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
+                    return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
+                            d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
+                            "hsl(" + coltouse + ",100%,40%)")
+                })
+                .style("stroke-width", function (d) {
+                    return(d.zoneselected === 0 ? 2 : 6)
+                })
+                .on("mousemove", function (d, i) {
+                    //Using mousemove here AND in the rect should let us know where we are at all times
+                    state.mouseIsOverLine = true
+//                    console.log("still in! " + d3.mouse(this)[0] + "," + d3.mouse(this)[1])
+
+                    //No need to find nearest zone line - pass element then check when there
+//                    findNearestZoneLine(this)
+//                    
+                    //false: this is not the nearest, this is the exact position
+//                    findNearestZoneLine(Math.round(sideBarVerticalScale(d.wagem_median_rank)), false)
+                    //Just pass the object!
+//                    findNearestZoneLine(d)
+
+//                    styleFromSelectedIndexNumber(i)
+                    //pass index number to be used for styling other parts of viz
+                    setLineStyle(d3.select(this), i)
+
                 })
 
 
+        //Now they're made, get a record of their positions for finding nearest with mouse y
+        setLinesCoordinates()
 
 
     })
 
+    //Keep a flag updated for whether the mouse is in the side bar rectangle
+    //Note 1: needed to give it a fill in CSS - otherwise, fill: none and the 
+    //mouse behaviour only detects the edge line.
+    //Note 2: it thinks it's outside the rectangle when it's over lines. Can't find a way to stop that.
+    //Will attempt for now just to set mouseIsInSideBar to true when it's also over the lines.
+    d3.select("#sidebarrect")
+            .on("mousemove", function () {
+                state.mouseIsInSidebar = true
+
+//                console.log("in!" + d3.mouse(this)[0] + "," + d3.mouse(this)[1])
+//                findNearestZoneLine([d3.mouse(this)[0], d3.mouse(this)[1]])
+
+                //true: this is the nearest point, not the exact point
+                findNearestZoneLine(Math.round(d3.mouse(this)[1]))
+
+            })
+//            .on("mouseleave", function () {
+//                state.mouseIsInSidebar = false
+//                console.log("out!")
+//            })
 
 
     //bootstrap slider
@@ -308,7 +513,7 @@ function init() {
                 .data(json.features)
                 .enter().append("path")
                 .attr("id", function (d, i) {
-                    return("polygon" + i)
+                    return("localauthorityindex" + i)
                 })
                 .attr("class", "mappath")
                 .attr("d", path);
@@ -330,13 +535,10 @@ function init() {
                 .data(yeardata)
                 .on("mouseover", function () {
 
-                    d3.select(this)
-//                            .style("stroke-width", "0.75")
-                            .style("fill", function (d, i) {
-                                var colScale = d3.scaleLinear().domain([110.5, 6520]).range([120, 0])//hsl
-                                var coltouse = Math.round(colScale(d.wagem_median_rank))
-                                return(d.wagemultipleFromMedian > 0 ? "hsl(" + coltouse + ",100%,30%)" : "rgb(100,100,100)")
-                            })
+                    //Call set hover style in its own function so other viz elements can do it too.
+                    d3.select(this)            
+                            .call(setMapHoverStyle)
+
                 })
                 .on("mouseout", function () {
                     //Needs doing this way because the call needs the selection passed explicitly
