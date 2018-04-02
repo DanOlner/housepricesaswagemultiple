@@ -12,6 +12,9 @@ var yeardata = null
 
 var geofeatures = null
 
+//alldata local authority lookup
+var lookup = null
+
 //Selection of highest / lowest wage multiple local authorities
 //Maybe just use names to create flag array huh?
 var topbottom = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -349,11 +352,11 @@ function setLineStyle(selection, j) {
 //            window.console.log("selection data order: " + selection.data()[0].mnemonic);
             d3.select("path#" + selection.data()[0].mnemonic)
                     .style("stroke-width", "6")
-                    .style("stroke","blue")
+                    .style("stroke", "blue")
 
             d3.select("path#" + state.prevStyledLine.data()[0].mnemonic)
                     .style("stroke-width", "2")
-                    .style("stroke","black")
+                    .style("stroke", "black")
 
 
             //Try accessing directly. Tick.
@@ -572,7 +575,7 @@ function update() {
         return d.year == state.sliderVal
     })
 
-   
+
     //Update alldata zoneselected field
     for (var j = 0; j < 20; j++) {
         for (var i = 0; i < 326; i++) {
@@ -649,7 +652,7 @@ function update() {
                     return(graphLineGenerator(d.datapoints))
                 })
 
-            
+
 
 
 
@@ -668,7 +671,7 @@ function update() {
 
     function updateMap() {
 
-        
+
 
         //Draw new features to make sure thicker line is at top of draw pile
         var topselection = d3.select("g#topselect")
@@ -858,6 +861,24 @@ function init() {
 //        state.allselectiondata = alldata.filter(function(d){
 //            return alldata
 //        })
+
+
+
+
+
+        //create lookup
+        lookup = d3.nest()
+                .key(function (d) {
+                    return d.mnemonic;
+                })
+                .key(function (d) {
+                    return d.year;
+                })
+                .entries(alldata);
+
+
+
+
 
         //add zone selection flag to all data
         //Every 326 is one year ordered the same, long form
