@@ -45,7 +45,7 @@ var bottomten = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 //zoneselection: one for each local authority. Set to all zeroes to start with. Same order as places names in alldata
 var state = {
     sliderVal: 1997,
-    previousSliderVal: 1997, //detect change to avoid calling update too much
+    previousSliderVal: 1997, //detect change to avoid calling update too much - only change when new year selected
     zoneselection: Array.apply(null, Array(326)).map(Number.prototype.valueOf, 0),
     mouseIsInSidebar: false, //if inside then use next mouseover as overall selection
     mouseIsOverLine: false, //needed cos IsInSidebar is switched off when the mouse goes over a line. Way to fix?
@@ -79,19 +79,10 @@ var sideBarVerticalScale = d3.scaleLinear().domain([221, 6520]).range([750, 0])/
 //global cos using later
 //map extent and range to map to
 //via qgis: xMin,yMin 82679.8,5357.8 : xMax,yMax 655604.70,657534.10
-//And I think again, with BNG, it's flipped on y axis
+//British National Grid flipped on y axis
 var xScale = d3.scaleLinear().domain([82679, 655605]).range([0, 500])
 var yScale = d3.scaleLinear().domain([5357, 657535]).range([1000, 0])
 
-//For making SVG path to pass
-var lineGenerator = d3.line();
-lineGenerator
-        .x(function (d, i) {
-            return  xScale(i)
-        })
-        .y(function (d) {
-            return yScale(d)
-        })
 
 //use to set graph size as well
 var graphxrange = 350
@@ -158,9 +149,11 @@ $(".testb").click(function () {
 
         case "3"://randomise. 
 
+            //326 zeroes
             state.zoneselection = Array.apply(null, Array(326)).map(Number.prototype.valueOf, 0)
 
             //make sure ten are selected. Smarter ways of doing this, so I read, but since we're using a flag...
+            //needs initialising here so the while can get started
             var sum = 0
 
             while (sum < 10) {
@@ -220,6 +213,27 @@ function setLinesCoordinates() {
 
 }
 
+
+
+//Taking in a y coordinate from mouseover the sidebar rectangle
+//and we have to find the nearest
+//(exact matches call setLineStyle directly so don't need this)
+function findNearestZoneLine(numorobject) {
+
+    var match = 0;
+    match = returnNearestPlace(numorobject)
+
+//    window.console.log(match.NAME);
+
+
+    //This is currently a copy of a row. Can find a quicker way to get ref I think
+    //"Order" starts at 1, as is R's wont. i index is yer standard array start-at-zero
+    setLineStyle(d3.select("line#localauthorityindex" + (match.order - 1)), (match.order - 1))
+
+}
+
+
+
 //find nearest value in array
 //Returns a copy of the whole row's data
 function returnNearestPlace(num) {
@@ -249,27 +263,10 @@ function returnNearestPlace(num) {
 
 }
 
-//Taking in a y coordinate from mouseover the sidebar rectangle
-//and we have to find the nearest
-//(exact matches call setLineStyle directly so don't need this)
-function findNearestZoneLine(numorobject) {
-
-    var match = 0;
-    match = returnNearestPlace(numorobject)
-
-//    window.console.log(match.NAME);
-
-
-    //This is currently a copy of a row. Can find a quicker way to get ref I think
-    //"Order" starts at 1, as is R's wont. i index is yer standard array start-at-zero
-    setLineStyle(d3.select("line#localauthorityindex" + (match.order - 1)), (match.order - 1))
-
-}
 
 
 //https://github.com/d3/d3-selection using selection.call
 function setZoneStyle(selection, j) {
-
 
     selection
             .style("fill", function (d, i) {
@@ -343,7 +340,7 @@ function setLineStyle(selection, j) {
 //        if (state.prevStyledLine !== selection.data()[0].order - 1) {
         if (state.prevStyledLine.data()[0].NAME !== selection.data()[0].NAME) {
 
-//Do map first. Ooo isn't that neat? Err. NO.
+            //Do map first. Ooo isn't that neat? Err. NO.
             setZoneStyle(d3.select("path#localauthorityindex" + (state.prevStyledLine.data()[0].order - 1) + ".mappath"), j)
 
 
@@ -367,7 +364,7 @@ function setLineStyle(selection, j) {
                         return(d.zoneselected === 0 ? 2 : 6)
                     })
                     .style("stroke", function (d) {//               
-                        prevname = d.NAME
+//                        prevname = d.NAME
 //                        window.console.log("In previous selection: " + prevname);
 
 //                        return(Math.round(mapColourScale(d.wagem_median_rank)))
@@ -466,12 +463,12 @@ function setGraphLineData() {
         state.graphselectionreshape.push(
                 {
                     name: x.NAME,
-                    id: x.mnemonic//cos no spaces like name and ccs doesn't like numbers for IDs
+                    id: x.mnemonic//cos no spaces like name and css doesn't like numbers for IDs
                 }
         )
     })
 
-    //Iterate over each name. Use to filter to get year line values for each
+    //Iterate over each name. Use filter to get year line values for each
     state.graphselectionreshape.forEach(function (x) {
 
         var place = state.allselectiondata.filter(function (d) {
@@ -566,8 +563,6 @@ function update() {
 
 //get single year's data
 //Reminder to self: functions get the scope of functions that call them.
-//Although... I don't understand how alldata can be accessible 
-//when update is called via the on.slider
 //This'll work as it's pass by reference
     yeardata = alldata.filter(function (d) {
 
@@ -577,12 +572,7 @@ function update() {
         return d.year == state.sliderVal
     })
 
-    //add zone selection to year data for ease of access
-    //Don't need - do just for alldata
-//    for (var i = 0; i < 326; i++) {
-//        yeardata[i].zoneselected = state.zoneselection[i]
-//    }
-
+   
     //Update alldata zoneselected field
     for (var j = 0; j < 20; j++) {
         for (var i = 0; i < 326; i++) {
@@ -659,6 +649,9 @@ function update() {
                     return(graphLineGenerator(d.datapoints))
                 })
 
+            
+
+
 
         //Vertical year marker line
         d3.select("rect.graphyearbar")
@@ -675,13 +668,7 @@ function update() {
 
     function updateMap() {
 
-
-
-//test
-//        feelterd = geofeatures.features.filter(function (x, index) {
-//            return(state.zoneselection[index])
-//        })
-
+        
 
         //Draw new features to make sure thicker line is at top of draw pile
         var topselection = d3.select("g#topselect")
@@ -861,8 +848,7 @@ function init() {
     console.log("init")
 
     //price and wage data 1997 to 2016
-    //It doesn't matter whether I declare var alldata as global at the start.
-    //I don't know why.
+    //Wrangled in dataSorting4JavascriptViz.R (currently in miscGithubBlogging...)
     alldata = d3.csv('data/prices_n_wagesByLocalAuthority_missingsAreMinusOne2.csv', function (err, csv) {
         alldata = csv
 
@@ -970,7 +956,6 @@ function init() {
 
 
     //Subset for testing (which I run again to get a separate copy to make sure it'll load)
-    //This subset is got from data above once initially loaded
     yeardata = d3.csv('data/prices_n_wagesByLocalAuthority_missingsAreMinusOne2.csv', function (err, csv) {
 
         //Test filtering data then applying to paths
@@ -1045,6 +1030,7 @@ function init() {
                     //I have a feeling there's a sensible way to do this once. Don't know what yet.
 
                     //state.zonehoveredover set when setLineStyle called. Used to select
+                    //Toggle
                     state.zoneselection[state.zonehoveredover] = (state.zoneselection[state.zonehoveredover] === 0 ? 1 : 0)
                     update()
 
