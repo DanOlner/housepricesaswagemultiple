@@ -3,6 +3,10 @@ var geofeatures = null
 //alldata local authority lookup
 var lookup = null
 
+//single year's data. Updates when year slider moved.
+//Saves having to recreate it for every update.
+var yeardata = null
+
 //zoneselection: one for each local authority. Set to all zeroes to start with. Same order as places names in alldata
 var state = {
     sliderVal: 1997,
@@ -29,10 +33,17 @@ state.selectedZones = ["Barnsley", "Burnley", "Camden", "Copeland", "Derby", "Ha
 //colours to median wage rank in the map
 var mapColourScale = d3.scaleLinear().domain([110.5, 6520]).range([120, 0])//hsl
 
+//same for vertical sidebar
+//221 is where non-null ranked entries start. (Will change when I update data.)
+var sideBarVerticalScale = d3.scaleLinear().domain([221, 6520]).range([750, 0])//hsl
+
+
 
 function update() {
 
     updateMap()
+
+    updateSidebar()
 
 }
 
@@ -117,6 +128,93 @@ function updateMap() {
 
 }
 
+
+
+
+
+
+
+function updateSidebar() {
+
+
+    var linez = d3.select("g#sidebar")
+            .selectAll("line")
+            .data(yeardata)
+
+
+    linez
+            .enter()
+            .append("line")
+            .attr("class", "sidebarline")
+            .attr("id", function (d, i) {
+//                    window.console.log(i);
+                return("localauthorityindex" + i)
+            })
+            .on("mousemove", function (d, i) {
+                //Using mousemove here AND in the rect should let us know where we are at all times
+                state.mouseIsOverLine = true
+
+//                    styleFromSelectedIndexNumber(i)
+                //pass index number to be used for styling other parts of viz
+                setLineStyle(d3.select(this), i)
+
+            })
+            .on("click", function () {
+
+                //This code needs repeating for when mouse is near lines via sidebarrect behaviour
+                //I have a feeling there's a sensible way to do this once. Don't know what yet.
+
+                //state.zonehoveredover set when setLineStyle called. Used to select
+                //Toggle
+                state.zoneselection[state.zonehoveredover] = (state.zoneselection[state.zonehoveredover] === 0 ? 1 : 0)
+                update()
+
+            })
+
+
+
+
+            .merge(linez)
+            .transition()
+            .attrs({
+                x1: function (d) {
+                    return(state.selectedZones.includes(d.NAME) ? -4 : 1)
+                },
+                y1: function (d) {
+                    return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
+                },
+                x2: function (d) {
+                    return(state.selectedZones.includes(d.NAME) ? 39 : 34)
+                },
+                y2: function (d) {
+                    return(Math.round(sideBarVerticalScale(d.wagem_median_rank)))
+                }
+            })
+            .style("stroke", function (d) {
+
+                var coltouse = Math.round(mapColourScale(d.wagem_median_rank))
+                return(d.wagemultipleFromMedian < 0 ? "rgb(150,150,150)" : //nested ternary: vals are -1 if missing. Otherwise, use whether zone selected to style
+                        d.zoneselected === 0 ? "hsl(" + coltouse + ",85%,60%)" :
+                        "hsl(" + coltouse + ",100%,40%)")
+                
+            })
+            .style("stroke-width", function (d) {
+//                console.log(d.NAME);
+                return(state.selectedZones.includes(d.NAME) ? "6" : "2")
+
+            })
+
+
+
+
+}
+
+
+
+
+
+
+
 function load() {
 
 // attach event handlers etc.
@@ -168,12 +266,6 @@ function load() {
 
             lookup = {}
 
-//            var lu = lookup
-
-//            csv.forEach(function (row) {
-//                console.log("row: " + row.mnemonic)
-//            })
-
             //Using NAME: mnemonic is -1 if there's no data.
             csv.forEach(function (row) {
                 if (!_.has(lookup, row.NAME)) {
@@ -184,6 +276,12 @@ function load() {
 
             })
 
+
+            //Update when the slider's moved.
+            yeardata = csv
+            yeardata = yeardata.filter(function (d) {
+                return d.year == state.sliderVal
+            })
 
 
             init()
@@ -214,6 +312,13 @@ function init() {
         //Only update if value changed
         if (state.sliderVal !== state.previousSliderVal) {
             state.previousSliderVal = state.sliderVal
+
+            yeardata = alldata
+            yeardata = yeardata.filter(function (d) {
+                return d.year == state.sliderVal
+            })
+
+
             update()
         }
 
